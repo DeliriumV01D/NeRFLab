@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TNeRFLabMainWindow</class>
+ <widget class="QMainWindow" name="TNeRFLabMainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>801</width>
+    <height>482</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>NeRFLab</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QHBoxLayout" name="horizontalLayout">
+    <item>
+     <widget class="TNeRFRenderWidget" name="RenderWidget" native="true">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionSaveAs">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Document-save-as.png</normaloff>:/icons/icons/48px-Document-save-as.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save As</string>
+   </property>
+  </action>
+  <action name="actionSave">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Document-save.png</normaloff>:/icons/icons/48px-Document-save.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save</string>
+   </property>
+  </action>
+  <action name="actionZoomIn">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-zoom-in.png</normaloff>:/icons/icons/48px-zoom-in.png</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom in</string>
+   </property>
+  </action>
+  <action name="actionZoomOut">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-zoom-out.png</normaloff>:/icons/icons/48px-zoom-out.png</iconset>
+   </property>
+   <property name="text">
+    <string>Zoom out</string>
+   </property>
+  </action>
+  <action name="actionSelectROI">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-select-roi.png</normaloff>:/icons/icons/48px-select-roi.png</iconset>
+   </property>
+   <property name="text">
+    <string>Select</string>
+   </property>
+  </action>
+  <action name="actionResetROI">
+   <property name="icon">
+    <iconset>
+     <normaloff>:/icons/icons/48px-reset-roi.png</normaloff>:/icons/icons/48px-reset-roi.png</iconset>
+   </property>
+   <property name="text">
+    <string>Reset</string>
+   </property>
+  </action>
+  <action name="actionSetDefaultCursor">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-default-cursor.png</normaloff>:/icons/icons/48px-default-cursor.png</iconset>
+   </property>
+   <property name="text">
+    <string>Default cursor</string>
+   </property>
+  </action>
+  <action name="actionPolypaint">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Polypaint.png</normaloff>:/icons/icons/48px-Polypaint.png</iconset>
+   </property>
+   <property name="text">
+    <string>Polypaint</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Preferences-system.png</normaloff>:/icons/icons/48px-Preferences-system.png</iconset>
+   </property>
+   <property name="text">
+    <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionDummy">
+   <property name="text">
+    <string>dummy</string>
+   </property>
+  </action>
+  <action name="actionRedo">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Edit-redo.png</normaloff>:/icons/icons/48px-Edit-redo.png</iconset>
+   </property>
+   <property name="text">
+    <string>redo</string>
+   </property>
+  </action>
+  <action name="actionUndo">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Edit-undo.png</normaloff>:/icons/icons/48px-Edit-undo.png</iconset>
+   </property>
+   <property name="text">
+    <string>undo</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/close.png</normaloff>:/icons/icons/close.png</iconset>
+   </property>
+   <property name="text">
+    <string>close</string>
+   </property>
+  </action>
+  <action name="actionHelp">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/Help-browser.png</normaloff>:/icons/icons/Help-browser.png</iconset>
+   </property>
+   <property name="text">
+    <string>Help</string>
+   </property>
+  </action>
+  <action name="actionViewMode">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/true_color.png</normaloff>:/icons/icons/true_color.png</iconset>
+   </property>
+   <property name="text">
+    <string>View Mode</string>
+   </property>
+   <property name="toolTip">
+    <string>View mode</string>
+   </property>
+  </action>
+  <action name="actionOpen">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Document-open.png</normaloff>:/icons/icons/48px-Document-open.png</iconset>
+   </property>
+   <property name="text">
+    <string>Open</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>TNeRFRenderWidget</class>
+   <extends>QWidget</extends>
+   <header>TNeRFRenderWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="NeRFLab.qrc"/>
+ </resources>
+ <connections/>
+</ui>

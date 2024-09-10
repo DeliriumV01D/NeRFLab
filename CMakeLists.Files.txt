@@ -1,0 +1,107 @@
+cmake_minimum_required(VERSION 3.8)
+
+#project(NeRFLab)
+
+include_directories("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v11.8/include")
+include_directories(${CMAKE_SOURCE_DIR}/../NeRF++/src)
+include_directories(${CMAKE_SOURCE_DIR}/../NeRF++/src/Common)
+include_directories(${CMAKE_SOURCE_DIR}/../NeRF++/src/LibTorchTraining)
+include_directories(${CMAKE_SOURCE_DIR}/../RuCLIP/src)
+include_directories(${CMAKE_SOURCE_DIR}/../RuCLIP/src/youtokentome)
+include_directories(${CMAKE_SOURCE_DIR}/../RuCLIP/src/youtokentome/third_party)
+#include_directories("src/LibTorchTraining")
+#include_directories(${CMAKE_SOURCE_DIR}/src/LibTorchTraining)
+#include_directories("C:/Program Files (x86)/IntelSWTools/compilers_and_libraries_2020.1.216/windows/mkl/include")
+
+link_directories(
+	"C:/Program Files (x86)/Intel/oneAPI/mkl/2022.1.0/lib/intel64"
+)
+
+set(SOURCES ${SOURCES}
+	../NeRF++/src/LibTorchTraining/Trainable.cpp
+	../NeRF++/src/CuSHEncoder.cpp
+	../NeRF++/src/CuSHEncoder.cu
+	../NeRF++/src/CuHashEmbedder.cpp
+	../NeRF++/src/CuHashEmbedder.cu
+	../NeRF++/src/NeRF.cpp
+	../NeRF++/src/BaseNeRFRenderer.cpp
+	../NeRF++/src/NeRFExecutor.cpp
+	src/TabToolbar/Builder.cpp
+	src/TabToolbar/CompactToolButton.cpp
+	src/TabToolbar/Group.cpp
+	src/TabToolbar/Page.cpp
+	src/TabToolbar/Styles.cpp
+	src/TabToolbar/StyleTools.cpp
+	src/TabToolbar/SubGroup.cpp
+	src/TabToolbar/TabToolbar.cpp
+	src/TabToolbar/ToolButtonStyle.cpp
+	src/TThreadedNeRFExecutor.cpp
+	src/TNeRFLabMainWindow.cpp
+	src/TNeRFLabMainWindow.ui
+	src/TNeRFRenderWidget.cpp
+	../RuCLIP/src/RuCLIP.cpp
+	../RuCLIP/src/RuCLIPProcessor.cpp
+	../RuCLIP/src/youtokentome/utf8.cpp
+	../RuCLIP/src/youtokentome/utils.cpp
+	../RuCLIP/src/youtokentome/bpe.cpp	
+	../NeRF++/src/PyramidEmbedder.cpp
+	../NeRF++/src/LeRF.cpp
+	src/main.cpp
+)
+
+set(HEADERS ${HEADERS}
+	../NeRF++/src/json_fwd.hpp
+	../NeRF++/src/json.hpp
+	../NeRF++/src/load_blender.h
+	../NeRF++/src/LibTorchTraining/TorchHeader.h
+	../NeRF++/src/LibTorchTraining/Trainable.h
+	../NeRF++/src/BaseEmbedder.h
+	../NeRF++/src/CuSHEncoder.h
+	../NeRF++/src/CuHashEmbedder.h
+	../NeRF++/src/Sampler.h
+	../NeRF++/src/NeRF.h
+	../NeRF++/src/BaseNeRFRenderer.h
+	../NeRF++/src/NeRFExecutor.h
+	../NeRF++/src/Common/TRandomInt.h
+	../NeRF++/src/RayUtils.h
+	src/TabToolbar/API.h
+	src/TabToolbar/Builder.h
+	src/TabToolbar/CompactToolButton.h
+	src/TabToolbar/Group.h
+	src/TabToolbar/Page.h
+	src/TabToolbar/Styles.h
+	src/TabToolbar/StyleTools.h
+	src/TabToolbar/SubGroup.h
+	src/TabToolbar/TabToolbar.h
+	src/TabToolbar/ToolButtonStyle.h
+	src/TThreadedNeRFExecutor.h
+	src/TNeRFLabMainWindow.h
+	src/TNeRFRenderWidget.h
+	src/CommonDefinitions.h
+	../RuCLIP/src/RuCLIP.h
+	../RuCLIP/src/youtokentome/utf8.h
+	../RuCLIP/src/youtokentome/utils.h
+	../RuCLIP/src/youtokentome/bpe.h
+	../RuCLIP/src/RuCLIPProcessor.h
+	../NeRF++/src/PyramidEmbedder.h
+	../NeRF++/src/LeRF.h
+)
+
+set(LIBS ${LIBS}
+	${TORCH_LIBRARIES}
+	${OpenCV_LIBS}
+	Qt6::Core
+	Qt6::Gui
+	Qt6::Widgets 
+	#${CUDA_LIBRARIES}
+	#${CUDA_CUDART_LIBRARY}
+	#${CUDA_CUDA_LIBRARY}
+	#${CUDA_cublas_LIBRARY}
+	#${CUDA_curand_LIBRARY}
+	#faiss
+)
+
+set(QtResources
+	src/NeRFLab.qrc
+)
+
