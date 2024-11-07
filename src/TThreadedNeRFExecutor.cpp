@@ -10,7 +10,7 @@ TThreadedNeRFExecutor :: ~TThreadedNeRFExecutor()
 	Finalize();
 }
 
-void TThreadedNeRFExecutor :: SetExecutor(std::unique_ptr<NeRFExecutor <CuHashEmbedder, CuSHEncoder, NeRFSmall>> &executor)
+void TThreadedNeRFExecutor :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor)
 {
 	//if (Executor != nullptr)
 	//	throw std::runtime_error("TNeRFRenderWidget :: SetExecutor not intended to be called twice");
@@ -19,6 +19,19 @@ void TThreadedNeRFExecutor :: SetExecutor(std::unique_ptr<NeRFExecutor <CuHashEm
 	Finalize();
 	Executor = std::move(executor);
 	Start();
+}
+
+void TThreadedNeRFExecutor :: SetLeRFPrompts(const std::string &lerf_positives, const std::vector<std::string> &lerf_negatives)
+{
+	//Cтопит поток, дожидается остановки, меняет промпт потом снова запускает	
+	Finalize();
+	Executor->SetLeRFPrompts(lerf_positives, lerf_negatives);
+	Start();
+}
+
+std::tuple<torch::Tensor, torch::Tensor> TThreadedNeRFExecutor :: GetLeRFPrompts()
+{
+	return Executor->GetLeRFPrompts();
 }
 
 void TThreadedNeRFExecutor :: Initialize()
@@ -60,7 +73,7 @@ void TThreadedNeRFExecutor :: RenderView(
 	int w,
 	int h,
 	const torch::Tensor k,
-	const RenderParams &rparams
+	const NeRFRenderParams &rparams
 ){
 	RenderPose = render_pose;
 	W = w;

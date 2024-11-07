@@ -40,16 +40,21 @@ TNeRFRenderWidget :: TNeRFRenderWidget(QWidget * parent /*= nullptr*/)
 {
 	SetDefaultScene();
 
-	connect(&Executor, SIGNAL(UpdateResult(RenderResult)), this, SLOT(OnUpdateResult(RenderResult)));
+	connect(&Executor, SIGNAL(UpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult>)), this, SLOT(OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult>)));
 }
 
 TNeRFRenderWidget :: ~TNeRFRenderWidget()
 {
 }
 
-void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<NeRFExecutor <CuHashEmbedder, CuSHEncoder, NeRFSmall>> &executor)
+void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor)
 {
-	std::vector<torch::Tensor> splits = torch::split(executor->GetEmbedderBoundingBox(), { 3, 3 }, -1);
+	torch::Tensor bounding_box;
+	if (executor->GetParams().use_nerf)
+		bounding_box = executor->GetEmbedderBoundingBox();
+	if (executor->GetParams().use_lerf)
+		bounding_box = executor->GetLangEmbedderBoundingBox();
+	std::vector<torch::Tensor> splits = torch::split(bounding_box, { 3, 3 }, -1);
 	auto box_min = splits[0];
 	auto box_max = splits[1];
 
@@ -101,7 +106,7 @@ void TNeRFRenderWidget :: SetDefaultPose(torch::Tensor default_pose)
 	Render();
 };
 
-void TNeRFRenderWidget :: SetRenderParams(const RenderParams &params)
+void TNeRFRenderWidget :: SetRenderParams(const NeRFRenderParams &params)
 {
 	NRWMutex.lock();
 	RParams = params;
@@ -347,47 +352,52 @@ void TNeRFRenderWidget :: SetDefaultScene()
 
 //SLOTS
 
-void TNeRFRenderWidget :: OnUpdateResult(RenderResult render_result)
+void TNeRFRenderWidget :: OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult> render_result)
 {
 	if (ViewParams.DrawNeRFRGB)
-	{
-		SetRenderMat(TorchTensorToCVMat(render_result.Outputs1.RGBMap.cpu()));
-	}
+		if (std::get<0>(render_result).Outputs1.RGBMap.defined())
+		{
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.RGBMap.cpu()));
+		}
 
 	if (ViewParams.DrawNeRFDepth)
-	{
-		render_result.Outputs1.DepthMap = (render_result.Outputs1.DepthMap - RParams.Near) / (RParams.Far - RParams.Near);
-		SetRenderMat(TorchTensorToCVMat(render_result.Outputs1.DepthMap.detach().cpu()));
-	}
+		if (std::get<0>(render_result).Outputs1.DepthMap.defined())
+		{
+			std::get<0>(render_result).Outputs1.DepthMap = (std::get<0>(render_result).Outputs1.DepthMap - RParams.Near) / (RParams.Far - RParams.Near);
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.DepthMap.detach().cpu()));
+		}
 
 	if (ViewParams.DrawNeRFDisp)
-	{
-		SetRenderMat(TorchTensorToCVMat(render_result.Outputs1.DispMap.cpu()));
-	}
+		if (std::get<0>(render_result).Outputs1.DispMap.defined())
+		{
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.DispMap.cpu()));
+		}
+
+	if (ViewParams.DrawLeRF)
+		if (std::get<1>(render_result).Outputs1.RenderedLangEmbedding.defined())
+		{
+			int w = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.sizes()[1],
+				h = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.sizes()[0];		//this->size().height();
+			cv::Mat relevancy_img(h, w, CV_8UC1/*CV_32FC1*/);
+			auto [lerf_positives, lerf_negatives] = this->Executor.GetLeRFPrompts();
+			#pragma omp parallel for
+			for (int i = 0; i < w; i++)
+				for (int j = 0; j < h; j++)
+				{
+					torch::Tensor image_features = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.index({j,i}).to(torch::kCPU).unsqueeze(0);
+					torch::Tensor rel = Relevancy(image_features, lerf_positives, lerf_negatives);
+					float lv = rel.index({0,0}).item<float>();
+					relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>((lv>0.7?lv:0) * 255);	//[-1..1] -> [0..255]
+				}
+			SetRenderMat(relevancy_img);
+		}
 	
 	update();
+}
 
-	////rgbs.push_back(render_result.Outputs1.RGBMap.cpu());
-	////disps.push_back(render_result.Outputs1.DispMap.cpu());
-	////normalize depth to[0, 1]
-	//render_result.Outputs1.DepthMap = (render_result.Outputs1.DepthMap - near) / (far - near);
+void TNeRFRenderWidget :: SetLeRFPrompts(const std::string &lerf_positives, const std::vector<std::string> &lerf_negatives)
+{
+	this->Executor.SetLeRFPrompts(lerf_positives, lerf_negatives);
 
-	////torch::Tensor normals_from_depth = NormalMapFromDepthMap(render_result.Outputs1.DepthMap.detach().cpu());
-	////if (!savedir.empty())
-	////	cv::imwrite((savedir / ("normals_from_depth_" + std::to_string(disps.size() - 1) + ".png")).string(), TorchTensorToCVMat(normals_from_depth));
-
-	//if (!savedir.empty())
-	//{
-	//	cv::imwrite((savedir / (std::to_string(i) + ".png")).string(), TorchTensorToCVMat(render_result.Outputs1.RGBMap.cpu()));
-	//	cv::imwrite((savedir / ("disp_" + std::to_string(i) + ".png")).string(), TorchTensorToCVMat(render_result.Outputs1.DispMap));
-	//	cv::imwrite((savedir / ("depth_" + std::to_string(i) + ".png")).string(), TorchTensorToCVMat(render_result.Outputs1.DepthMap));
-	//	if (calculate_normals)
-	//	{
-	//		cv::imwrite((savedir / ("rendered_norm_" + std::to_string(i) + ".png")).string(), TorchTensorToCVMat(render_result.Outputs1.RenderedNormals));
-	//	}
-	//	if (use_pred_normal)
-	//	{
-	//		cv::imwrite((savedir / ("pred_rendered_norm_" + std::to_string(i) + ".png")).string(), TorchTensorToCVMat(render_result.Outputs1.RenderedPredNormals));
-	//	}
-	//}
+	update();
 }

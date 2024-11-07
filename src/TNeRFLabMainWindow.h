@@ -1,8 +1,11 @@
 #ifndef TNERFLABMAINWINDOW_H
 #define TNERFLABMAINWINDOW_H
 
+#include "load_blender.h"
+
 #include <QMainWindow>
 #include <QCheckBox>
+#include <QTextEdit>
 
 namespace tt{
 class TabToolbar;
@@ -21,7 +24,11 @@ private:
 	tt::TabToolbar * NeRFLabMainWindowToolbar;
 	QAction * acNeRFRGB,
 		* acNeRFDepth,
-		* acNeRFDisp;
+		* acNeRFDisp,
+		* acLeRF;
+	std::string DatasetDir;
+	CompactData Data;
+	QTextEdit * tePrompt;
 
 public:
 	TNeRFLabMainWindow(QWidget *parent = nullptr);
@@ -32,9 +39,14 @@ public slots:
 	void OnActionSaveTriggered();
 	void OnActionSaveAsTriggered();
 
+	void OnActionTrainNerfTriggered();
+	void OnActionTrainLerfTriggered();
+
 	void OnAcNeRFRGBTriggered(bool checked);
 	void OnAcNeRFDepthTriggered(bool checked);
 	void OnAcNeRFDispTriggered(bool checked);
+	void OnAcLeRFTriggered(bool checked);
 
+	void OnTePromptTextChanged();
 };
 #endif // TNERFLABMAINWINDOW_H

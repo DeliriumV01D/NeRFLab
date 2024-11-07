@@ -10,25 +10,25 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
 
-
 struct TRenderWidgetViewParams 
 {
 	bool DrawNeRFRGB{true},
 		DrawNeRFDepth{false},
-		DrawNeRFDisp{false};
+		DrawNeRFDisp{false},
+		DrawLeRF{false};
 };
 
 class TNeRFRenderWidget : public QWidget {
 	Q_OBJECT
-private:
-
+public:
+	//using TRenderResult = std::tuple<NeRFRenderResult, LeRFRenderResult>;
 protected:
 	QMutex NRWMutex;
 
 	TThreadedNeRFExecutor	Executor;
 	//std::unique_ptr<TThreadedNeRFExecutor> Executor = nullptr;
 	torch::Tensor K;
-	RenderParams RParams;
+	NeRFRenderParams RParams;
 	TRenderWidgetViewParams ViewParams;
 	cv::Mat RenderMat;
 
@@ -60,10 +60,10 @@ public:
 	TNeRFRenderWidget(QWidget * parent = nullptr);
 	~TNeRFRenderWidget();
 
-	void SetExecutor(std::unique_ptr<NeRFExecutor <CuHashEmbedder, CuSHEncoder, NeRFSmall>> &executor);
+	void SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor);
 	void SetK(torch::Tensor k){K = k;};
 	void SetDefaultPose(torch::Tensor default_pose);
-	void SetRenderParams(const RenderParams &params);
+	void SetRenderParams(const NeRFRenderParams &params);
 	TRenderWidgetViewParams GetViewParams();
 	void SetViewParams(const TRenderWidgetViewParams &params);
 	torch::Tensor GetRenderPose();
@@ -80,7 +80,8 @@ public:
 	void TranslateUp();
 	void SetDefaultScene();
 public slots:
-	void OnUpdateResult(RenderResult render_result);
+	void OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult> render_result);
+	void SetLeRFPrompts(const std::string &lerf_positives, const std::vector<std::string> &lerf_negatives);
 };
 
 #endif

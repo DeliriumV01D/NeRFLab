@@ -42,6 +42,9 @@
 		<file>../icons/48px-default-cursor.png</file>
 		<file>../icons/48px-color-bucket.png</file>
 		<file>../icons/48px-highlight.png</file>
+		<file>../icons/Lego2.png</file>
+		<file>../icons/NLP.png</file>
+		<file>../icons/visual_embedding.png</file>
 	</qresource>
     <qresource prefix="/tt">
         <file>TabToolbar/StyleTemplate.qss</file>

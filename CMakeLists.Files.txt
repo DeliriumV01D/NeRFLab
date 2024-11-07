@@ -24,7 +24,7 @@ set(SOURCES ${SOURCES}
 	../NeRF++/src/CuHashEmbedder.cpp
 	../NeRF++/src/CuHashEmbedder.cu
 	../NeRF++/src/NeRF.cpp
-	../NeRF++/src/BaseNeRFRenderer.cpp
+	../NeRF++/src/NeRFRenderer.cpp
 	../NeRF++/src/NeRFExecutor.cpp
 	src/TabToolbar/Builder.cpp
 	src/TabToolbar/CompactToolButton.cpp
@@ -46,6 +46,7 @@ set(SOURCES ${SOURCES}
 	../RuCLIP/src/youtokentome/bpe.cpp	
 	../NeRF++/src/PyramidEmbedder.cpp
 	../NeRF++/src/LeRF.cpp
+	../NeRF++/src/LeRFRenderer.cpp
 	src/main.cpp
 )
 
@@ -60,7 +61,7 @@ set(HEADERS ${HEADERS}
 	../NeRF++/src/CuHashEmbedder.h
 	../NeRF++/src/Sampler.h
 	../NeRF++/src/NeRF.h
-	../NeRF++/src/BaseNeRFRenderer.h
+	../NeRF++/src/NeRFRenderer.h
 	../NeRF++/src/NeRFExecutor.h
 	../NeRF++/src/Common/TRandomInt.h
 	../NeRF++/src/RayUtils.h
@@ -85,6 +86,7 @@ set(HEADERS ${HEADERS}
 	../RuCLIP/src/RuCLIPProcessor.h
 	../NeRF++/src/PyramidEmbedder.h
 	../NeRF++/src/LeRF.h
+	../NeRF++/src/LeRFRenderer.h
 )
 
 set(LIBS ${LIBS}
