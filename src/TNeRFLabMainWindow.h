@@ -22,11 +22,15 @@ class TNeRFLabMainWindow : public QMainWindow
 private:
 	Ui::TNeRFLabMainWindow * ui;
 	tt::TabToolbar * NeRFLabMainWindowToolbar;
-	QAction * acNeRFRGB,
+	QAction * acOpenImageFolder,
+		* acOpenBlenderDataset,
+		* acOpenColmapReconstruction,
+		* acNeRFRGB,
 		* acNeRFDepth,
 		* acNeRFDisp,
 		* acLeRF;
-	std::string DatasetDir;
+	std::string DatasetDir,
+		NeRFDir;
 	CompactData Data;
 	QTextEdit * tePrompt;
 
@@ -35,10 +39,14 @@ public:
 	~TNeRFLabMainWindow();
 
 public slots:
-	void OnActionOpenTriggered();
+	void OnAcOpenImageFolderTriggered();
+	void OnAcOpenBlenderDatasetTriggered();
+	void OnAcOpenColmapReconstructionTriggered();
 	void OnActionSaveTriggered();
 	void OnActionSaveAsTriggered();
 
+	void OnActionOpenNerfTriggered();
+	void OnActionSaveNerfTriggered();
 	void OnActionTrainNerfTriggered();
 	void OnActionTrainLerfTriggered();
 

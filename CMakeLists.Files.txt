@@ -13,9 +13,12 @@ include_directories(${CMAKE_SOURCE_DIR}/../RuCLIP/src/youtokentome/third_party)
 #include_directories(${CMAKE_SOURCE_DIR}/src/LibTorchTraining)
 #include_directories("C:/Program Files (x86)/IntelSWTools/compilers_and_libraries_2020.1.216/windows/mkl/include")
 
-link_directories(
-	"C:/Program Files (x86)/Intel/oneAPI/mkl/2022.1.0/lib/intel64"
-)
+link_directories ("C:/Program Files (x86)/Intel/oneAPI/mkl/2022.1.0/lib/intel64")
+
+if (USE_COLMAP)
+include_directories(C:/vcpkg/installed/x64-windows/include)
+link_directories("C:/vcpkg/installed/x64-windows/lib")
+endif()
 
 set(SOURCES ${SOURCES}
 	../NeRF++/src/LibTorchTraining/Trainable.cpp
@@ -47,6 +50,7 @@ set(SOURCES ${SOURCES}
 	../NeRF++/src/PyramidEmbedder.cpp
 	../NeRF++/src/LeRF.cpp
 	../NeRF++/src/LeRFRenderer.cpp
+	../NeRF++/src/ColmapReconstruction.cpp
 	src/main.cpp
 )
 
@@ -87,6 +91,7 @@ set(HEADERS ${HEADERS}
 	../NeRF++/src/PyramidEmbedder.h
 	../NeRF++/src/LeRF.h
 	../NeRF++/src/LeRFRenderer.h
+	../NeRF++/src/ColmapReconstruction.h
 )
 
 set(LIBS ${LIBS}
@@ -101,6 +106,8 @@ set(LIBS ${LIBS}
 	#${CUDA_cublas_LIBRARY}
 	#${CUDA_curand_LIBRARY}
 	#faiss
+	colmap::colmap
+	#gflags
 )
 
 set(QtResources

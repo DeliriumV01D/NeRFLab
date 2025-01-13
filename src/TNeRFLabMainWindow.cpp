@@ -6,6 +6,8 @@
 #include "NeRFRenderer.h"
 #include "NeRFExecutor.h"
 
+#include "ColmapReconstruction.h"
+
 #include <TabToolbar/TabToolbar.h>
 #include <TabToolbar/Page.h>
 #include <TabToolbar/Group.h>
@@ -31,6 +33,7 @@
 
 const std::string DATA_DIR = "..//..//NeRF++//data//nerf_synthetic//drums";
 const std::string BASE_DIR = "output";
+const std::string CMDB_DIR = "cmdb";
 
 
 #include "TNeRFLabMainWindow.h"
@@ -45,21 +48,37 @@ TNeRFLabMainWindow :: TNeRFLabMainWindow(QWidget *parent)
 	NeRFLabMainWindowToolbar = new tt::TabToolbar(this, 75, 3);
 	addToolBar(Qt::TopToolBarArea, NeRFLabMainWindowToolbar);
 
-	tt::Page * page_file = NeRFLabMainWindowToolbar->AddPage(" File ");
-	tt::Group * groupFile = page_file->AddGroup("File");
-	groupFile->AddAction(QToolButton::DelayedPopup, ui->actionOpen);
-	groupFile->AddAction(QToolButton::DelayedPopup, ui->actionSave);
-	groupFile->AddAction(QToolButton::DelayedPopup, ui->actionSaveAs);
-	connect(ui->actionOpen, SIGNAL(triggered()), this, SLOT(OnActionOpenTriggered()));
+	tt::Page * page_data = NeRFLabMainWindowToolbar->AddPage(" Data ");
+	tt::Group * groupData = page_data->AddGroup("Data");
+
+	QMenu * menuOpen = new QMenu(this);
+	menuOpen->setObjectName(" menuOpen ");
+	acOpenImageFolder = new QAction("Open Image Folder");
+	menuOpen->addAction(acOpenImageFolder);
+	acOpenBlenderDataset = new QAction("Open Blender Dataset");
+	menuOpen->addAction(acOpenBlenderDataset);
+	acOpenColmapReconstruction = new QAction("Open COLMAP Reconstruction");
+	menuOpen->addAction(acOpenColmapReconstruction);
+	groupData->AddAction(QToolButton::MenuButtonPopup, ui->actionOpen, menuOpen);
+	connect(acOpenImageFolder, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenImageFolderTriggered()));
+	connect(acOpenBlenderDataset, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenBlenderDatasetTriggered()));
+	connect(acOpenColmapReconstruction, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenColmapReconstructionTriggered()));
+	
+	groupData->AddAction(QToolButton::DelayedPopup, ui->actionSave);
+	groupData->AddAction(QToolButton::DelayedPopup, ui->actionSaveAs);
 	connect(ui->actionSave, SIGNAL(triggered()), this, SLOT(OnActionSaveTriggered()));
 	connect(ui->actionSaveAs, SIGNAL(triggered()), this, SLOT(OnActionSaveAsTriggered()));
 
-	tt::Page * page_preprocessing = NeRFLabMainWindowToolbar->AddPage(" Preprocessing ");
+	tt::Page * page_process = NeRFLabMainWindowToolbar->AddPage(" Process ");
 
-	tt::Page * page_training = NeRFLabMainWindowToolbar->AddPage(" Training ");
-	tt::Group * groupTrain = page_training->AddGroup("Train");
-	groupTrain->AddAction(QToolButton::DelayedPopup, ui->actionTrainNerf);
-	groupTrain->AddAction(QToolButton::DelayedPopup, ui->actionTrainLerf);
+	tt::Page * page_nerf = NeRFLabMainWindowToolbar->AddPage(" NeRF ");
+	tt::Group * groupNerf = page_nerf->AddGroup("NeRF");
+	groupNerf->AddAction(QToolButton::DelayedPopup, ui->actionOpenNerf);
+	groupNerf->AddAction(QToolButton::DelayedPopup, ui->actionSaveNerf);
+	groupNerf->AddAction(QToolButton::DelayedPopup, ui->actionTrainNerf);
+	groupNerf->AddAction(QToolButton::DelayedPopup, ui->actionTrainLerf);
+	connect(ui->actionOpenNerf, SIGNAL(triggered()), this, SLOT(OnActionOpenNerfTriggered()));
+	connect(ui->actionSaveNerf, SIGNAL(triggered()), this, SLOT(OnActionSaveNerfTriggered()));
 	connect(ui->actionTrainNerf, SIGNAL(triggered()), this, SLOT(OnActionTrainNerfTriggered()));
 	connect(ui->actionTrainLerf, SIGNAL(triggered()), this, SLOT(OnActionTrainLerfTriggered()));
 
@@ -188,7 +207,45 @@ TNeRFLabMainWindow :: ~TNeRFLabMainWindow()
 //SLOTS
 /*****************************************************************************************/
 
-void TNeRFLabMainWindow :: OnActionOpenTriggered()
+
+void TNeRFLabMainWindow :: OnAcOpenImageFolderTriggered()
+{
+	auto image_dir = QFileDialog::getExistingDirectory(
+		this,
+		tr("Select image directory"),
+		"..//..//NeRF++//data//nerf_synthetic//drums",
+		QFileDialog::ShowDirsOnly
+	).toStdString();
+
+	if (image_dir.empty())
+		return;
+
+	try{
+		///Пока что каждый раз очищаем рабочую директорию
+		if (std::filesystem::exists(CMDB_DIR))
+			if (std::filesystem::remove_all(CMDB_DIR) != static_cast<std::uintmax_t>(-1));
+		std::filesystem::create_directories(CMDB_DIR);
+
+		ColmapReconstruction(image_dir, CMDB_DIR);
+
+		Data = LoadData(CMDB_DIR,
+			torch::kCUDA,
+			DatasetType::COLMAP,
+			false,			///load blender synthetic data at 400x400 instead of 800x800
+			true,
+			false				///set to render synthetic data on a white bkgd (always use for dvoxels)
+		);
+
+	} catch (std::exception &e) { 
+		std::cout<<e.what()<<std::endl;
+		int ret = QMessageBox::critical(this, tr("NeRFLab"),
+			tr(": \n") + tr(e.what()),
+			QMessageBox::Ok
+		);
+	}
+}
+
+void TNeRFLabMainWindow :: OnAcOpenBlenderDatasetTriggered()
 {
 	DatasetDir = QFileDialog::getExistingDirectory(
 		this,
@@ -220,11 +277,102 @@ void TNeRFLabMainWindow :: OnActionOpenTriggered()
 	}
 }
 
+void TNeRFLabMainWindow :: OnAcOpenColmapReconstructionTriggered()
+{
+	auto cmdb_dir = QFileDialog::getExistingDirectory(
+		this,
+		tr("Select COLMAP workspace directory"),
+		"cmdb",
+		QFileDialog::ShowDirsOnly
+	).toStdString();
+
+	if (cmdb_dir.empty())
+		return;
+
+	try{
+		Data = LoadData(cmdb_dir,
+			torch::kCUDA,
+			DatasetType::COLMAP,
+			false,			///load blender synthetic data at 400x400 instead of 800x800
+			true,
+			false				///set to render synthetic data on a white bkgd (always use for dvoxels)
+		);
+	} catch (std::exception &e) { 
+		std::cout<<e.what()<<std::endl;
+		int ret = QMessageBox::critical(this, tr("NeRFLab"),
+			tr(": \n") + tr(e.what()),
+			QMessageBox::Ok
+		);
+	}
+}
+
 void TNeRFLabMainWindow :: OnActionSaveTriggered()
 {
 }
 
 void TNeRFLabMainWindow :: OnActionSaveAsTriggered()
+{
+}
+
+void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
+{
+	NeRFDir = QFileDialog::getExistingDirectory(
+		this,
+		tr("Select NeRF directory"),
+		QString::fromLocal8Bit(BASE_DIR),
+		QFileDialog::ShowDirsOnly
+	).toStdString();
+
+	if (NeRFDir.empty())
+		return;
+
+	try{
+		torch::manual_seed(42);
+
+		NeRFExecutorParams exparams;
+		exparams.LoadFromFile(std::filesystem::path(NeRFDir) / "executor_params.json");
+		std::unique_ptr<TThreadedNeRFExecutor::TExecutor> nerf_executor = std::make_unique<TThreadedNeRFExecutor::TExecutor>(exparams);
+
+		NeRFExecutorTrainParams params;
+		params.LoadFromFile(std::filesystem::path(NeRFDir) / "executor_train_params.json");
+
+		Data.LoadFromFile(std::filesystem::path(NeRFDir) / "data.json");
+		///!!!Сделать нормальное копирование, так как эти тензоры заполняются внутри
+		float kdata[] = { Data.Focal, 0, 0.5f * Data.W,
+			0, Data.Focal, 0.5f * Data.H,
+			0, 0, 1 };
+		Data.K = torch::from_blob(kdata, { 3, 3 }, torch::kFloat32);
+		//data.K = GetCalibrationMatrix(data.Focal, data.W, data.H).clone().detach();
+		//Data.BoundingBox = GetBbox3dForObj(Data).clone().detach();
+
+		nerf_executor->Initialize(exparams, Data.BoundingBox);
+		if (exparams.use_lerf)
+			nerf_executor->InitializePyramidClipEmbedding(params, Data);
+
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+
+		TRenderWidgetViewParams vp;
+		vp.DrawNeRFRGB = true;
+		vp.DrawNeRFDepth = false;
+		vp.DrawNeRFDisp = false;
+		vp.DrawLeRF = false;
+		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
+		ui->RenderWidget->SetRenderParams(*render_params);
+		ui->RenderWidget->SetK(Data.K.clone().detach());
+		ui->RenderWidget->SetExecutor(nerf_executor);
+		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach());
+		ui->RenderWidget->SetViewParams(vp);
+
+	} catch (std::exception &e){ 
+		std::cout<<e.what()<<std::endl;
+		int ret = QMessageBox::critical(this, tr("NeRFLab"),
+			tr(": \n") + tr(e.what()),
+			QMessageBox::Ok
+		);
+	}
+}
+
+void TNeRFLabMainWindow :: OnActionSaveNerfTriggered()
 {
 }
 
@@ -235,10 +383,9 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 
 		///Пока что каждый раз очищаем рабочую директорию
 		if (std::filesystem::exists(BASE_DIR))
-		{
-			if (std::filesystem::remove_all(BASE_DIR) != static_cast<std::uintmax_t>(-1))
-				std::filesystem::create_directories(BASE_DIR);
-		}
+			std::filesystem::remove_all(BASE_DIR) != static_cast<std::uintmax_t>(-1);
+		std::filesystem::create_directories(BASE_DIR);
+
 
 		NeRFExecutorParams exparams;
 		exparams.net_depth = 2;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
@@ -277,6 +424,7 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		exparams.num_layers_le = 2;					//Language embedder head params
 		exparams.hidden_dim_le = 256;				//Language embedder head params
 		exparams.lang_embed_dim = 768;			//Language embedder head params
+		exparams.geo_feat_dim_le = 32;			//Language embedder head params
 		exparams.path_to_clip = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336";									//Path to RuClip model
 		exparams.	path_to_bpe = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336//bpe.model";			//Path to tokenizer
 		exparams.lerf_positives = "stool chair";
@@ -295,10 +443,10 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		params.TestSkip = true;
 		params.Chunk = 1024 * 4;				//number of rays processed in parallel, decrease if running out of memory
 		params.NSamples = 64;						//number of coarse samples per ray
-		params.NRand = 32 * 32 * 4;			//batch size (number of random rays per gradient step), decrease if running out of memory
+		params.NRand = 32 * 32 * 1;			//batch size (number of random rays per gradient step), decrease if running out of memory
 		params.PrecorpIters = 0;				//number of steps to train on central crops
 		params.NIters = 6100;
-		params.LRateDecay = 3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		params.LRateDecay = 2;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
 		//logging / saving options
 		params.IPrint = 100;						//frequency of console printout and metric loggin
 		params.IImg = 500;							//frequency of tensorboard image logging
@@ -319,7 +467,9 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		Data.BoundingBox = GetBbox3dForObj(Data).clone().detach();
 		nerf_executor->Train(Data, params);
 
-		//nerf_executor->Initialize(nerf_executor->GetParams(), data.BoundingBox);
+		exparams.SaveToFile(params.BaseDir / "executor_params.json");
+		params.SaveToFile(params.BaseDir / "executor_train_params.json");
+		Data.SaveToFile(params.BaseDir / "data.json");
 
 		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
@@ -351,10 +501,8 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 
 		///Пока что каждый раз очищаем рабочую директорию
 		if (std::filesystem::exists(BASE_DIR))
-		{
-			if (std::filesystem::remove_all(BASE_DIR) != static_cast<std::uintmax_t>(-1))
-				std::filesystem::create_directories(BASE_DIR);
-		}
+			std::filesystem::remove_all(BASE_DIR) != static_cast<std::uintmax_t>(-1);
+		std::filesystem::create_directories(BASE_DIR);
 
 		NeRFExecutorParams exparams;
 		exparams.net_depth = 2;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF

@@ -198,6 +198,24 @@
     <string>Train LeRF</string>
    </property>
   </action>
+  <action name="actionSaveNerf">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Document-save.png</normaloff>:/icons/icons/48px-Document-save.png</iconset>
+   </property>
+   <property name="text">
+    <string>Save NeRF</string>
+   </property>
+  </action>
+  <action name="actionOpenNerf">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/48px-Document-open.png</normaloff>:/icons/icons/48px-Document-open.png</iconset>
+   </property>
+   <property name="text">
+    <string>Open NeRF</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

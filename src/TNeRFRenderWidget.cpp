@@ -94,7 +94,6 @@ void TNeRFRenderWidget :: SetDefaultPose(torch::Tensor default_pose)
 	XTra = default_pose[0][3].item<float>();
 	YTra = default_pose[1][3].item<float>();
 	ZTra = default_pose[2][3].item<float>();
-	SceneBoundingSphereRadius = sqrt(XTra * XTra + YTra * YTra + ZTra * ZTra);
 	XRot = found_x_rot/PI*180;
 	YRot = found_y_rot/PI*180;
 	ZRot = found_z_rot/PI*180;
@@ -374,24 +373,22 @@ void TNeRFRenderWidget :: OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRender
 		}
 
 	if (ViewParams.DrawLeRF)
-		if (std::get<1>(render_result).Outputs1.RenderedLangEmbedding.defined())
+		if (std::get<1>(render_result).Outputs1.Relevancy.defined())
 		{
-			int w = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.sizes()[1],
-				h = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.sizes()[0];		//this->size().height();
+			torch::Tensor rel = std::get<1>(render_result).Outputs1.Relevancy.cpu();
+			int w = rel.sizes()[1],
+				h = rel.sizes()[0];		//this->size().height();
 			cv::Mat relevancy_img(h, w, CV_8UC1/*CV_32FC1*/);
-			auto [lerf_positives, lerf_negatives] = this->Executor.GetLeRFPrompts();
 			#pragma omp parallel for
 			for (int i = 0; i < w; i++)
 				for (int j = 0; j < h; j++)
 				{
-					torch::Tensor image_features = std::get<1>(render_result).Outputs1.RenderedLangEmbedding.index({j,i}).to(torch::kCPU).unsqueeze(0);
-					torch::Tensor rel = Relevancy(image_features, lerf_positives, lerf_negatives);
-					float lv = rel.index({0,0}).item<float>();
-					relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>((lv>0.7?lv:0) * 255);	//[-1..1] -> [0..255]
+						float lv = rel.index({j,i,0}).item<float>();
+						relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>((lv>0.7?lv:0) * 255);	//[-1..1] -> [0..255]
 				}
 			SetRenderMat(relevancy_img);
 		}
-	
+
 	update();
 }
 

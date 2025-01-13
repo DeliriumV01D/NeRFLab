@@ -11,6 +11,11 @@ find_package(OpenMP)
 # find_package(CUDA)
 # find_package(CUDAToolkit REQUIRED)
 #find_package(faiss REQUIRED)
+if (USE_COLMAP)
+	add_definitions(-USE_COLMAP)
+	find_package(colmap REQUIRED)
+	#find_package(gflags REQUIRED)
+endif()
 
 
 set(CMAKE_CXX_STANDARD 17)
@@ -69,5 +74,5 @@ add_definitions(-D_DISABLE_EXTENDED_ALIGNED_STORAGE)
                      COMMAND ${CMAKE_COMMAND} -E copy_if_different
                      ${TORCH_DLLS}
                      $<TARGET_FILE_DIR:NeRFLab>)
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /openmp")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /openmp /MP")
 endif()
