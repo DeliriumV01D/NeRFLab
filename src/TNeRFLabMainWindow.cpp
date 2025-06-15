@@ -407,11 +407,11 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		exparams.num_layers_normals = 2;			//!!!->2
 		exparams.hidden_dim_normals = 64;
 		exparams.geo_feat_dim = 15;
-		exparams.n_levels = 16;
+		exparams.n_levels = 18;
 		exparams.n_features_per_level = 2;
-		exparams.log2_hashmap_size = 19;		//19
+		exparams.log2_hashmap_size = 21;		//19
 		exparams.base_resolution = 16;
-		exparams.finest_resolution = 512;
+		exparams.finest_resolution = 1024;
 		exparams.device = torch::kCUDA;
 		exparams.learning_rate = 1e-2;		//5e-4 for classic NeRF
 		exparams.ft_path = BASE_DIR;//"..//..//NeRF++//build//output";//"..//output";		//"..//..//NeRF++//build//output";
@@ -441,12 +441,12 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		params.LinDisp = false;					//sampling linearly in disparity rather than depth
 		params.NoBatching = true;				//only take random rays from 1 image at a time
 		params.TestSkip = true;
-		params.Chunk = 1024 * 4;				//number of rays processed in parallel, decrease if running out of memory
+		params.Chunk = 1024 * (exparams.use_lerf ? 1 : 4);				//number of rays processed in parallel, decrease if running out of memory, <= NRand
 		params.NSamples = 64;						//number of coarse samples per ray
-		params.NRand = 32 * 32 * 1;			//batch size (number of random rays per gradient step), decrease if running out of memory
+		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
 		params.NIters = 6100;
-		params.LRateDecay = 2;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		params.LRateDecay = 3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
 		//logging / saving options
 		params.IPrint = 100;						//frequency of console printout and metric loggin
 		params.IImg = 500;							//frequency of tensorboard image logging
@@ -524,17 +524,17 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		exparams.num_layers_normals = 2;			//!!!->2
 		exparams.hidden_dim_normals = 64;
 		exparams.geo_feat_dim = 15;
-		exparams.n_levels = 16;
+		exparams.n_levels = 18;
 		exparams.n_features_per_level = 2;
-		exparams.log2_hashmap_size = 19;		//19
+		exparams.log2_hashmap_size = 21;		//19
 		exparams.base_resolution = 16;
-		exparams.finest_resolution = 512;
+		exparams.finest_resolution = 1024;
 		exparams.device = torch::kCUDA;
 		exparams.learning_rate = 1e-2;		//5e-4 for classic NeRF
 		exparams.ft_path = BASE_DIR;//"..//..//NeRF++//build//output";//"..//output";		//"..//..//NeRF++//build//output";
 		exparams.n_levels_le = exparams.n_levels/*32*/,																		//for language embedder
 		exparams.n_features_per_level_le = 8/*8*/,								//for language embedder
-		exparams.log2_hashmap_size_le = 19,									//for language embedder
+		exparams.log2_hashmap_size_le = 21,									//for language embedder
 		exparams.base_resolution_le = exparams.base_resolution,													//for language embedder
 		exparams.finest_resolution_le = exparams.finest_resolution,										//for language embedder
 		exparams.pyr_embedder_overlap = 0.75f;
@@ -557,12 +557,12 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		params.LinDisp = false;					//sampling linearly in disparity rather than depth
 		params.NoBatching = true;				//only take random rays from 1 image at a time
 		params.TestSkip = true;
-		params.Chunk = 1024 * 1;				//number of rays processed in parallel, decrease if running out of memory
+		params.Chunk = 1024 * (exparams.use_lerf ? 1 : 4);				//number of rays processed in parallel, decrease if running out of memory, <= NRand
 		params.NSamples = 64;						//number of coarse samples per ray
-		params.NRand = 32 * 32 * 1;			//batch size (number of random rays per gradient step), decrease if running out of memory
+		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
 		params.NIters = 6100;
-		params.LRateDecay = 2;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		params.LRateDecay = 3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
 		//logging / saving options
 		params.IPrint = 100;						//frequency of console printout and metric loggin
 		params.IImg = 500;							//frequency of tensorboard image logging

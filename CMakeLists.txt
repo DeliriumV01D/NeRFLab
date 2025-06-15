@@ -15,6 +15,7 @@ if (USE_COLMAP)
 	add_definitions(-USE_COLMAP)
 	find_package(colmap REQUIRED)
 	#find_package(gflags REQUIRED)
+	add_compile_definitions(GLOG_USE_GLOG_EXPORT)
 endif()
 
 
@@ -76,3 +77,5 @@ add_definitions(-D_DISABLE_EXTENDED_ALIGNED_STORAGE)
                      $<TARGET_FILE_DIR:NeRFLab>)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /bigobj /openmp /MP")
 endif()
+
+SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -allow-unsupported-compiler")
