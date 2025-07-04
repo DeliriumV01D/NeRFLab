@@ -68,42 +68,50 @@ void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TEx
 	Render();
 }
 
-void TNeRFRenderWidget :: SetDefaultPose(torch::Tensor default_pose)
-{
-	//Get rotations from pose
-	float found_x_rot, found_y_rot, found_z_rot;
-	found_y_rot = -torch::asin(default_pose[0][2]).item<float>();
-	auto C = cos(found_y_rot);
-	if (fabs( C ) > 0.005)												/* ось y зафиксирована? */
-	{
-		float tx = default_pose[2][2].item<float>() / C;		/* Нет, находим угол поворота вокруг X */
-		float ty = -default_pose[1][2].item<float>() / C;
-		found_x_rot  = atan2( ty, tx );
 
-		tx = default_pose[0][0].item<float>() / C;												/* находим угол поворота вокруг оси Z */
-		ty = -default_pose[0][1].item<float>() / C;
-		found_z_rot  = atan2( ty, tx );
-	}	else {																			/* ось y зафиксирована */
-		found_x_rot  = 0;														/* Устанавливаем вращеине вокруг X на 0 */
-		float tx = default_pose[1][1].item<float>();											/* И считаем вращение вокруг Z */
-		float ty = default_pose[1][0].item<float>();
-		found_z_rot  = atan2( ty, tx );
+void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose)
+{
+	//Вот это уже делается раньше при загрузки pose из Colmap
+	////w2c->c2w
+	//pose = pose.inverse();
+	////Convert from COLMAP's camera coordinate system (OpenCV) to NeRF (OpenGL) | righthanded <-> lefthanded
+	//pose.index({ torch::indexing::Slice(0, 3), torch::indexing::Slice(1, 3) }) *= -1;
+	//а направление оси Y переворачивается в GetRenderPose
+
+	torch::Tensor R = default_pose.index({ torch::indexing::Slice(0, 3), torch::indexing::Slice(0, 3) });
+	//Извлекаем углы Эйлера в порядке ZYX (соответствует порядку применения в GetRenderPose)
+	float found_x_rot, found_y_rot, found_z_rot;
+	float sy = -R.index({ 2, 0 }).item<float>();
+	const float eps = 1e-6;
+	if (std::fabs(sy) < 1.0f - eps)
+	{
+		found_x_rot = std::atan2(R.index({ 2, 1 }).item<float>(), R.index({ 2, 2 }).item<float>());
+		found_y_rot = std::asin(sy);
+		found_z_rot = std::atan2(R.index({ 1, 0 }).item<float>(), R.index({ 0, 0 }).item<float>());
+	} else {
+		//Обработка случая gimbal lock
+		found_x_rot = std::atan2(-R.index({ 1, 2 }).item<float>(), R.index({ 1, 1 }).item<float>());
+		found_y_rot = (sy > 0) ? PI / 2.0f : -PI / 2.0f;
+		found_z_rot = 0.0f;
 	}
+	float tx = default_pose.index({ 0, 3 }).item<float>();
+	float ty = default_pose.index({ 1, 3 }).item<float>();
+	float tz = default_pose.index({ 2, 3 }).item<float>();
 
 	NRWMutex.lock();
-	XTra = default_pose[0][3].item<float>();
-	YTra = default_pose[1][3].item<float>();
-	ZTra = default_pose[2][3].item<float>();
-	XRot = found_x_rot/PI*180;
-	YRot = found_y_rot/PI*180;
-	ZRot = found_z_rot/PI*180;
-	NSca = 1.f;
-	std::cout<<"Found rotations: "<<XRot<<" "<<YRot<<" "<<ZRot<<std::endl;
-	std::cout<<"Found translations: "<<XTra<<" "<<YTra<<" "<<ZTra<<std::endl;
+	XTra = tx;
+	YTra = ty;
+	ZTra = tz;
+	XRot = found_x_rot * 180.0f / PI;
+	YRot = found_y_rot * 180.0f / PI;
+	ZRot = found_z_rot * 180.0f / PI;
+	NSca = 1.0f;
+	std::cout << "Found rotations: " << XRot << " " << YRot << " " << ZRot << std::endl;
+	std::cout << "Found translations: " << XTra << " " << YTra << " " << ZTra << std::endl;
 	NRWMutex.unlock();
 
 	Render();
-};
+}
 
 void TNeRFRenderWidget :: SetRenderParams(const NeRFRenderParams &params)
 {
