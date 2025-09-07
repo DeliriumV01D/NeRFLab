@@ -60,12 +60,12 @@ public:
 	TNeRFRenderWidget(QWidget * parent = nullptr);
 	~TNeRFRenderWidget();
 
-	void SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor);
+	void SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor, const bool render = true);
 	void SetK(torch::Tensor k){K = k;};
-	void SetDefaultPose(torch::Tensor default_pose);
-	void SetRenderParams(const NeRFRenderParams &params);
+	void SetDefaultPose(torch::Tensor default_pose, const bool render = true);
+	void SetRenderParams(const NeRFRenderParams &params, const bool render = true);
 	TRenderWidgetViewParams GetViewParams();
-	void SetViewParams(const TRenderWidgetViewParams &params);
+	void SetViewParams(const TRenderWidgetViewParams &params, const bool render = true);
 	torch::Tensor GetRenderPose();
 	void SetRenderMat(const cv::Mat render_mat);
 	void Render();

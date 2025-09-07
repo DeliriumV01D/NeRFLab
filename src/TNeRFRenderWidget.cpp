@@ -47,7 +47,7 @@ TNeRFRenderWidget :: ~TNeRFRenderWidget()
 {
 }
 
-void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor)
+void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TExecutor> &executor, const bool render /*= true*/)
 {
 	torch::Tensor bounding_box;
 	if (executor->GetParams().use_nerf)
@@ -65,11 +65,11 @@ void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TEx
 
 	Executor.SetExecutor(executor);
 
-	Render();
+	if (render) Render();
 }
 
 
-void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose)
+void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose, const bool render /*= true*/)
 {
 	//Вот это уже делается раньше при загрузки pose из Colmap
 	////w2c->c2w
@@ -110,16 +110,16 @@ void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose)
 	std::cout << "Found translations: " << XTra << " " << YTra << " " << ZTra << std::endl;
 	NRWMutex.unlock();
 
-	Render();
+	if (render) Render();
 }
 
-void TNeRFRenderWidget :: SetRenderParams(const NeRFRenderParams &params)
+void TNeRFRenderWidget :: SetRenderParams(const NeRFRenderParams &params, const bool render /*= true*/)
 {
 	NRWMutex.lock();
 	RParams = params;
 	NRWMutex.unlock();
 
-	Render();
+	if (render) Render();
 };
 
 TRenderWidgetViewParams TNeRFRenderWidget :: GetViewParams()
@@ -131,13 +131,13 @@ TRenderWidgetViewParams TNeRFRenderWidget :: GetViewParams()
 	return result;
 };
 
-void TNeRFRenderWidget :: SetViewParams(const TRenderWidgetViewParams &params)
+void TNeRFRenderWidget :: SetViewParams(const TRenderWidgetViewParams &params, const bool render /*= true*/)
 {
 	NRWMutex.lock();
 	ViewParams = params;
 	NRWMutex.unlock();
 
-	Render();
+	if (render) Render();
 };
 
 torch::Tensor TNeRFRenderWidget :: GetRenderPose()
@@ -392,11 +392,12 @@ void TNeRFRenderWidget :: OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRender
 				for (int j = 0; j < h; j++)
 				{
 						float lv = rel.index({j,i,0}).item<float>();
-						relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>((lv>0.7?lv:0) * 255);	//[-1..1] -> [0..255]
+						relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>(lv * 255);	//[-1..1] -> [0..255]
 				}
-			SetRenderMat(relevancy_img);
+			cv::Mat colored_map;
+			cv::applyColorMap(relevancy_img, colored_map, cv::COLORMAP_JET);
+			SetRenderMat(colored_map);
 		}
-
 	update();
 }
 

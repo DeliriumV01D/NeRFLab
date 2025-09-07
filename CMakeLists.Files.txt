@@ -22,6 +22,8 @@ endif()
 
 set(SOURCES ${SOURCES}
 	../NeRF++/src/LibTorchTraining/Trainable.cpp
+	../NeRF++/src/CustomOps.cpp
+	../NeRF++/src/CustomOps.cu
 	../NeRF++/src/CuSHEncoder.cpp
 	../NeRF++/src/CuSHEncoder.cu
 	../NeRF++/src/CuHashEmbedder.cpp
@@ -50,7 +52,9 @@ set(SOURCES ${SOURCES}
 	../NeRF++/src/PyramidEmbedder.cpp
 	../NeRF++/src/LeRF.cpp
 	../NeRF++/src/LeRFRenderer.cpp
+
 	../NeRF++/src/ColmapReconstruction.cpp
+	../NeRF++/src/NeRFDataset.cpp
 	src/main.cpp
 )
 
@@ -60,6 +64,7 @@ set(HEADERS ${HEADERS}
 	../NeRF++/src/load_blender.h
 	../NeRF++/src/LibTorchTraining/TorchHeader.h
 	../NeRF++/src/LibTorchTraining/Trainable.h
+	../NeRF++/src/CustomOps.h
 	../NeRF++/src/BaseEmbedder.h
 	../NeRF++/src/CuSHEncoder.h
 	../NeRF++/src/CuHashEmbedder.h
@@ -91,7 +96,10 @@ set(HEADERS ${HEADERS}
 	../NeRF++/src/PyramidEmbedder.h
 	../NeRF++/src/LeRF.h
 	../NeRF++/src/LeRFRenderer.h
+
 	../NeRF++/src/ColmapReconstruction.h
+	../NeRF++/src/NeRFDatasetParams.h
+	../NeRF++/src/NeRFDataset.h
 )
 
 set(LIBS ${LIBS}

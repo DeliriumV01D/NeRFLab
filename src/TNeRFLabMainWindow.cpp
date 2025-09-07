@@ -228,7 +228,8 @@ void TNeRFLabMainWindow :: OnAcOpenImageFolderTriggered()
 
 		ColmapReconstruction(image_dir, CMDB_DIR);
 
-		Data = LoadData(CMDB_DIR,
+		Data = LoadDatasetParams(
+			CMDB_DIR,
 			torch::kCUDA,
 			DatasetType::COLMAP,
 			false,			///load blender synthetic data at 400x400 instead of 800x800
@@ -260,7 +261,8 @@ void TNeRFLabMainWindow :: OnAcOpenBlenderDatasetTriggered()
 	try{
 		torch::manual_seed(42);
 
-		Data = LoadData(DatasetDir,
+		Data = LoadDatasetParams(
+			DatasetDir,
 			torch::kCUDA,
 			DatasetType::BLENDER,
 			false,			///load blender synthetic data at 400x400 instead of 800x800
@@ -290,7 +292,8 @@ void TNeRFLabMainWindow :: OnAcOpenColmapReconstructionTriggered()
 		return;
 
 	try{
-		Data = LoadData(cmdb_dir,
+		Data = LoadDatasetParams(
+			cmdb_dir,
 			torch::kCUDA,
 			DatasetType::COLMAP,
 			false,			///load blender synthetic data at 400x400 instead of 800x800
@@ -337,17 +340,10 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 		params.LoadFromFile(std::filesystem::path(NeRFDir) / "executor_train_params.json");
 
 		Data.LoadFromFile(std::filesystem::path(NeRFDir) / "data.json");
-		///!!!Сделать нормальное копирование, так как эти тензоры заполняются внутри
-		float kdata[] = { Data.Focal, 0, 0.5f * Data.W,
-			0, Data.Focal, 0.5f * Data.H,
-			0, 0, 1 };
-		Data.K = torch::from_blob(kdata, { 3, 3 }, torch::kFloat32);
-		//data.K = GetCalibrationMatrix(data.Focal, data.W, data.H).clone().detach();
-		//Data.BoundingBox = GetBbox3dForObj(Data).clone().detach();
 
 		nerf_executor->Initialize(exparams, Data.BoundingBox);
 		if (exparams.use_lerf)
-			nerf_executor->InitializePyramidClipEmbedding(params, Data);
+			nerf_executor->SetLeRFPrompts(exparams.lerf_positives, exparams.lerf_negatives);//nerf_executor->InitializeTestLeRF(params, Data);
 
 		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, std::numeric_limits<int>::max(), torch::Tensor(), false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
@@ -355,13 +351,13 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 		vp.DrawNeRFRGB = true;
 		vp.DrawNeRFDepth = false;
 		vp.DrawNeRFDisp = false;
-		vp.DrawLeRF = false;
+		vp.DrawLeRF = exparams.use_lerf;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
-		ui->RenderWidget->SetRenderParams(*render_params);
+		ui->RenderWidget->SetRenderParams(*render_params, false);
 		ui->RenderWidget->SetK(Data.K.clone().detach());
-		ui->RenderWidget->SetExecutor(nerf_executor);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach());
-		ui->RenderWidget->SetViewParams(vp);
+		ui->RenderWidget->SetExecutor(nerf_executor, false);
+		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e){ 
 		std::cout<<e.what()<<std::endl;
@@ -385,7 +381,6 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		if (std::filesystem::exists(BASE_DIR))
 			std::filesystem::remove_all(BASE_DIR) != static_cast<std::uintmax_t>(-1);
 		std::filesystem::create_directories(BASE_DIR);
-
 
 		NeRFExecutorParams exparams;
 		exparams.net_depth = 2;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
@@ -444,26 +439,19 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		params.NSamples = 64;						//number of coarse samples per ray
 		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
-		params.NIters = 6100;
-		params.LRateDecay = 4;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
-		//logging / saving options
 		params.IPrint = 100;						//frequency of console printout and metric loggin
+		params.NIters = powf(float(Data.W) / 800 * float(Data.H) / 800, 0.7f) * 6000 + params.IPrint;
+		params.LRateDecay = float(params.NIters)/1000 * 2/3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		//logging / saving options
 		params.IImg = 500;							//frequency of tensorboard image logging
-		params.IWeights = 6000;				//frequency of weight ckpt saving
-		params.ITestset = 6000;				//frequency of testset saving
-		params.IVideo = 6200;					//frequency of render_poses video saving
+		params.IWeights = params.NIters - params.IPrint;				//frequency of weight ckpt saving
+		params.ITestset = params.NIters - params.IPrint;				//frequency of testset saving
+		params.IVideo = params.NIters + params.IPrint;					//frequency of render_poses video saving
 		params.ReturnRaw = false;
 		params.RenderFactor = 0;
 		params.PrecorpFrac = 0.5f;
 		params.PyramidClipEmbeddingSaveDir = DatasetDir;			//
 
-		///!!!Сделать нормальное копирование, так как эти тензоры заполняются внутри
-		float kdata[] = { Data.Focal, 0, 0.5f * Data.W,
-			0, Data.Focal, 0.5f * Data.H,
-			0, 0, 1 };
-		Data.K = torch::from_blob(kdata, { 3, 3 }, torch::kFloat32);
-		//data.K = GetCalibrationMatrix(data.Focal, data.W, data.H).clone().detach();
-		Data.BoundingBox = GetBbox3dForObj(Data).clone().detach();
 		nerf_executor->Train(Data, params);
 
 		exparams.SaveToFile(params.BaseDir / "executor_params.json");
@@ -478,11 +466,11 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		vp.DrawNeRFDisp = false;
 		vp.DrawLeRF = false;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
-		ui->RenderWidget->SetRenderParams(*render_params);
+		ui->RenderWidget->SetRenderParams(*render_params, false);
 		ui->RenderWidget->SetK(Data.K.clone().detach());
-		ui->RenderWidget->SetExecutor(nerf_executor);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach());
-		ui->RenderWidget->SetViewParams(vp);
+		ui->RenderWidget->SetExecutor(nerf_executor, false);
+		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e) { 
 		std::cout<<e.what()<<std::endl;
@@ -559,29 +547,26 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		params.NSamples = 64;						//number of coarse samples per ray
 		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
-		params.NIters = 6100;
-		params.LRateDecay = 4;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
-		//logging / saving options
 		params.IPrint = 100;						//frequency of console printout and metric loggin
+		params.NIters = powf(float(Data.W) / 800 * float(Data.H) / 800, 0.7f) * 6000 + params.IPrint;
+		params.LRateDecay = float(params.NIters) / 1000 * 2 / 3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		//logging / saving options
 		params.IImg = 500;							//frequency of tensorboard image logging
-		params.IWeights = 6000;				//frequency of weight ckpt saving
-		params.ITestset = 6000;				//frequency of testset saving
-		params.IVideo = 6200;					//frequency of render_poses video saving
+		params.IWeights = params.NIters - params.IPrint;				//frequency of weight ckpt saving
+		params.ITestset = params.NIters - params.IPrint;				//frequency of testset saving
+		params.IVideo = params.NIters + params.IPrint;					//frequency of render_poses video saving
 		params.ReturnRaw = false;
 		params.RenderFactor = 0;
 		params.PrecorpFrac = 0.5f;
 		params.PyramidClipEmbeddingSaveDir = DatasetDir;			//
 
-		///!!!Сделать нормальное копирование, так как эти тензоры заполняются внутри
-		float kdata[] = { Data.Focal, 0, 0.5f * Data.W,
-			0, Data.Focal, 0.5f * Data.H,
-			0, 0, 1 };
-		Data.K = torch::from_blob(kdata, { 3, 3 }, torch::kFloat32);
-		//data.K = GetCalibrationMatrix(data.Focal, data.W, data.H).clone().detach();
-		Data.BoundingBox = GetBbox3dForObj(Data).clone().detach();
 		nerf_executor->Train(Data, params);
 
 		//nerf_executor->Initialize(nerf_executor->GetParams(), data.BoundingBox);
+
+		exparams.SaveToFile(params.BaseDir / "executor_params.json");
+		params.SaveToFile(params.BaseDir / "executor_train_params.json");
+		Data.SaveToFile(params.BaseDir / "data.json");
 
 		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, std::numeric_limits<int>::max(), torch::Tensor(), false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
@@ -591,11 +576,11 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		vp.DrawNeRFDisp = false;
 		vp.DrawLeRF = true;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
-		ui->RenderWidget->SetRenderParams(*render_params);
+		ui->RenderWidget->SetRenderParams(*render_params, false);
 		ui->RenderWidget->SetK(Data.K.clone().detach());
-		ui->RenderWidget->SetExecutor(nerf_executor);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach());
-		ui->RenderWidget->SetViewParams(vp);
+		ui->RenderWidget->SetExecutor(nerf_executor, false);
+		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e) { 
 		std::cout<<e.what()<<std::endl;

@@ -31,7 +31,7 @@ private:
 		* acLeRF;
 	std::string DatasetDir,
 		NeRFDir;
-	CompactData Data;
+	NeRFDatasetParams Data;
 	QTextEdit * tePrompt;
 
 public:
