@@ -216,6 +216,33 @@
     <string>Open NeRF</string>
    </property>
   </action>
+  <action name="acOpenImageFolder">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/icons8-image-folder-48.png</normaloff>:/icons/icons/icons8-image-folder-48.png</iconset>
+   </property>
+   <property name="text">
+    <string>Open Image Folder</string>
+   </property>
+  </action>
+  <action name="acOpenBlenderDataset">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/blender-3d-48.png</normaloff>:/icons/icons/blender-3d-48.png</iconset>
+   </property>
+   <property name="text">
+    <string>Open Blender Dataset</string>
+   </property>
+  </action>
+  <action name="acOpenColmapReconstruction">
+   <property name="icon">
+    <iconset resource="NeRFLab.qrc">
+     <normaloff>:/icons/icons/icons8-house-48.png</normaloff>:/icons/icons/icons8-house-48.png</iconset>
+   </property>
+   <property name="text">
+    <string>Open Colmap Reconstruction</string>
+   </property>
+  </action>
  </widget>
  <customwidgets>
   <customwidget>

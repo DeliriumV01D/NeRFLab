@@ -53,16 +53,13 @@ TNeRFLabMainWindow :: TNeRFLabMainWindow(QWidget *parent)
 
 	QMenu * menuOpen = new QMenu(this);
 	menuOpen->setObjectName(" menuOpen ");
-	acOpenImageFolder = new QAction("Open Image Folder");
-	menuOpen->addAction(acOpenImageFolder);
-	acOpenBlenderDataset = new QAction("Open Blender Dataset");
-	menuOpen->addAction(acOpenBlenderDataset);
-	acOpenColmapReconstruction = new QAction("Open COLMAP Reconstruction");
-	menuOpen->addAction(acOpenColmapReconstruction);
+	menuOpen->addAction(ui->acOpenImageFolder);
+	menuOpen->addAction(ui->acOpenBlenderDataset);
+	menuOpen->addAction(ui->acOpenColmapReconstruction);
 	groupData->AddAction(QToolButton::MenuButtonPopup, ui->actionOpen, menuOpen);
-	connect(acOpenImageFolder, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenImageFolderTriggered()));
-	connect(acOpenBlenderDataset, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenBlenderDatasetTriggered()));
-	connect(acOpenColmapReconstruction, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenColmapReconstructionTriggered()));
+	connect(ui->acOpenImageFolder, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenImageFolderTriggered()));
+	connect(ui->acOpenBlenderDataset, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenBlenderDatasetTriggered()));
+	connect(ui->acOpenColmapReconstruction, SIGNAL(triggered(bool)), this, SLOT(OnAcOpenColmapReconstructionTriggered()));
 	
 	groupData->AddAction(QToolButton::DelayedPopup, ui->actionSave);
 	groupData->AddAction(QToolButton::DelayedPopup, ui->actionSaveAs);
@@ -345,7 +342,11 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 		if (exparams.use_lerf)
 			nerf_executor->SetLeRFPrompts(exparams.lerf_positives, exparams.lerf_negatives);//nerf_executor->InitializeTestLeRF(params, Data);
 
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, std::numeric_limits<int>::max(), torch::Tensor(), false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+
+		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
+		//helpful for reducing floaters during training, but it can cause clipping artifacts during
+		//inference when an evaluation or viewer camera moves closer to the object.
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0.f/*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = true;
@@ -354,7 +355,8 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 		vp.DrawLeRF = exparams.use_lerf;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		ui->RenderWidget->SetK(Data.K.clone().detach());
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
 		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);
@@ -420,6 +422,8 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		exparams.hidden_dim_le = 256;				//Language embedder head params
 		exparams.lang_embed_dim = 768;			//Language embedder head params
 		exparams.geo_feat_dim_le = 32;			//Language embedder head params
+		exparams.pyr_embed_min_zoom_out = 0;
+		exparams.pyr_embedder_overlap = 0.5;
 		exparams.path_to_clip = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336";									//Path to RuClip model
 		exparams.	path_to_bpe = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336//bpe.model";			//Path to tokenizer
 		exparams.lerf_positives = "stool chair";
@@ -458,7 +462,10 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		params.SaveToFile(params.BaseDir / "executor_train_params.json");
 		Data.SaveToFile(params.BaseDir / "data.json");
 
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, std::numeric_limits<int>::max(), torch::Tensor(), false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
+		//helpful for reducing floaters during training, but it can cause clipping artifacts during
+		//inference when an evaluation or viewer camera moves closer to the object.
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0./*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = true;
@@ -467,7 +474,8 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		vp.DrawLeRF = false;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		ui->RenderWidget->SetK(Data.K.clone().detach());
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
 		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);
@@ -524,7 +532,8 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		exparams.log2_hashmap_size_le = 21,									//for language embedder
 		exparams.base_resolution_le = exparams.base_resolution,													//for language embedder
 		exparams.finest_resolution_le = exparams.finest_resolution,										//for language embedder
-		exparams.pyr_embedder_overlap = 0.75f;
+		exparams.pyr_embed_min_zoom_out = 0;
+		exparams.pyr_embedder_overlap = 0.5f;
 		exparams.clip_input_img_size = 336;	//Input RuClip model size
 		exparams.num_layers_le = 2;					//Language embedder head params
 		exparams.hidden_dim_le = 256;				//Language embedder head params
@@ -568,7 +577,11 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		params.SaveToFile(params.BaseDir / "executor_train_params.json");
 		Data.SaveToFile(params.BaseDir / "data.json");
 
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, Data.Near, Data.Far, std::numeric_limits<int>::max(), torch::Tensor(), false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+
+		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
+		//helpful for reducing floaters during training, but it can cause clipping artifacts during
+		//inference when an evaluation or viewer camera moves closer to the object.
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0.f/*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = false;
@@ -577,7 +590,8 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		vp.DrawLeRF = true;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		ui->RenderWidget->SetK(Data.K.clone().detach());
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
 		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);

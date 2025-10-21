@@ -22,10 +22,7 @@ class TNeRFLabMainWindow : public QMainWindow
 private:
 	Ui::TNeRFLabMainWindow * ui;
 	tt::TabToolbar * NeRFLabMainWindowToolbar;
-	QAction * acOpenImageFolder,
-		* acOpenBlenderDataset,
-		* acOpenColmapReconstruction,
-		* acNeRFRGB,
+	QAction * acNeRFRGB,
 		* acNeRFDepth,
 		* acNeRFDisp,
 		* acLeRF;

@@ -6,6 +6,7 @@
 #include <QtCore/QCoreApplication.h>
 
 #include "CommonDefinitions.h"
+#include "load_blender.h"		//GetCalibrationMatrix
 
 ///Версия 4x4 (в однородных координатах). Переписать в пакетном виде. xyz == 1 (нормализовать)
 static torch :: Tensor AxisAngle(torch::Tensor axis, torch::Tensor angle)
@@ -39,6 +40,7 @@ TNeRFRenderWidget :: TNeRFRenderWidget(QWidget * parent /*= nullptr*/)
 	: QWidget(parent)
 {
 	SetDefaultScene();
+	setFocusPolicy(Qt::StrongFocus);
 
 	connect(&Executor, SIGNAL(UpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult>)), this, SLOT(OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult>)));
 }
@@ -59,7 +61,7 @@ void TNeRFRenderWidget :: SetExecutor(std::unique_ptr<TThreadedNeRFExecutor::TEx
 	auto box_max = splits[1];
 
 	NRWMutex.lock();
-	SceneBoundingSphereRadius = (box_max - box_min).norm().item<float>();
+	SceneBoundingSphereRadius = (box_max - box_min).norm().item<float>()/2;
 	SetDefaultScene();
 	NRWMutex.unlock();
 
@@ -73,12 +75,15 @@ void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose, const bool re
 {
 	//Вот это уже делается раньше при загрузки pose из Colmap
 	////w2c->c2w
-	//pose = pose.inverse();
+	//torch::Tensor R_inv = torch::linalg_inv(R_tens);	//R.transpose(0, 1); // Для ортогональной матрицы вращения обратная = транспонированная
+	//torch::Tensor t_inv = -torch::matmul(R_inv, t_tens);
 	////Convert from COLMAP's camera coordinate system (OpenCV) to NeRF (OpenGL) | righthanded <-> lefthanded
 	//pose.index({ torch::indexing::Slice(0, 3), torch::indexing::Slice(1, 3) }) *= -1;
-	//а направление оси Y переворачивается в GetRenderPose
 
-	torch::Tensor R = default_pose.index({ torch::indexing::Slice(0, 3), torch::indexing::Slice(0, 3) });
+	//Перейдем из системы координат связанной с камерой в мировую систему координат
+	torch::Tensor default_pose_world = C2W2C(default_pose);
+
+	torch::Tensor R = default_pose_world.index({ torch::indexing::Slice(0, 3), torch::indexing::Slice(0, 3) });
 	//Извлекаем углы Эйлера в порядке ZYX (соответствует порядку применения в GetRenderPose)
 	float found_x_rot, found_y_rot, found_z_rot;
 	float sy = -R.index({ 2, 0 }).item<float>();
@@ -94,9 +99,9 @@ void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose, const bool re
 		found_y_rot = (sy > 0) ? PI / 2.0f : -PI / 2.0f;
 		found_z_rot = 0.0f;
 	}
-	float tx = default_pose.index({ 0, 3 }).item<float>();
-	float ty = default_pose.index({ 1, 3 }).item<float>();
-	float tz = default_pose.index({ 2, 3 }).item<float>();
+	float tx = default_pose_world.index({ 0, 3 }).item<float>();
+	float ty = default_pose_world.index({ 1, 3 }).item<float>();
+	float tz = default_pose_world.index({ 2, 3 }).item<float>();
 
 	NRWMutex.lock();
 	XTra = tx;
@@ -106,8 +111,6 @@ void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose, const bool re
 	YRot = found_y_rot * 180.0f / PI;
 	ZRot = found_z_rot * 180.0f / PI;
 	NSca = 1.0f;
-	std::cout << "Found rotations: " << XRot << " " << YRot << " " << ZRot << std::endl;
-	std::cout << "Found translations: " << XTra << " " << YTra << " " << ZTra << std::endl;
 	NRWMutex.unlock();
 
 	if (render) Render();
@@ -117,6 +120,11 @@ void TNeRFRenderWidget :: SetRenderParams(const NeRFRenderParams &params, const 
 {
 	NRWMutex.lock();
 	RParams = params;
+	std::vector<torch::Tensor> splits = torch::split(RParams.BoundingBox, { 3, 3 }, -1);
+	auto box_min = splits[0];
+	auto box_max = splits[1];
+	SceneBoundingSphereRadius = (box_max - box_min).norm().item<float>() / 2;
+	//SetDefaultScene();
 	NRWMutex.unlock();
 
 	if (render) Render();
@@ -145,38 +153,42 @@ torch::Tensor TNeRFRenderWidget :: GetRenderPose()
 	torch::NoGradGuard no_grad;
 
 	NRWMutex.lock();
-	// загружаем единичную матрицу моделировани
-	float pose_data[] = { 1, 0, 0, 0,
-		0, 1, 0, 0,
-		0, 0, 1, 0,
-		0, 0, 0, 1};
-	auto pose = torch::from_blob(pose_data, { 4, 4 });
+	torch::Tensor pose;
 	try {
-		// масштабирование
+		//Загружаем единичную матрицу моделировани
+		float pose_world_data[] = { 1, 0, 0, 0,
+			0, 1, 0, 0,
+			0, 0, 1, 0,
+			0, 0, 0, 1 };
+		auto pose_world = torch::from_blob(pose_world_data, { 4, 4 });
+		//Масштабирование
 		float scale_data[] = { NSca, 0, 0, 0,
 			0, NSca, 0, 0,
 			0, 0, NSca, 0,
 			0, 0, 0, 1};
 		auto scale = torch::from_blob(scale_data, { 4, 4 });
-		pose = torch::matmul(pose, scale);
+		pose_world = torch::matmul(pose_world, scale);
 
-		// повороты
-		pose = torch::matmul(pose, AxisAngle(torch::tensor({0, 0, 1}), torch::tensor({ZRot/180*PI})) );  // поворот вокруг оси Z
-		pose = torch::matmul(pose, AxisAngle(torch::tensor({0, 1, 0}), torch::tensor({YRot/180*PI})) );  // поворот вокруг оси Y
-		pose = torch::matmul(pose, AxisAngle(torch::tensor({1, 0, 0}), torch::tensor({XRot/180*PI})) );  // поворот вокруг оси X
-
-		// трансляция
+		//Повороты
+		pose_world = torch::matmul(pose_world, AxisAngle(torch::tensor({ 1.0f, 0.0f, 0.0f }), torch::tensor({ XRot / 180 * PI })));  // Pitch  
+		pose_world = torch::matmul(pose_world, AxisAngle(torch::tensor({ 0.0f, 1.0f, 0.0f }), torch::tensor({ YRot / 180 * PI })));  // Yaw
+		pose_world = torch::matmul(pose_world, AxisAngle(torch::tensor({ 0.0f, 0.0f, 1.0f }), torch::tensor({ ZRot / 180 * PI })));  // Roll
+		//Трансляции
 		float trans_data[] = { 1, 0, 0, XTra,
-			0, 1, 0, -YTra,
+			0, 1, 0, YTra,
 			0, 0, 1, ZTra,
 			0, 0, 0, 1};
 		auto trans = torch::from_blob(trans_data, { 4, 4 });
-		pose = torch::matmul(pose, trans);
+		//pose = torch::matmul(pose, trans);
+		pose_world.index_put_({ torch::indexing::Slice(0, 3), 3 }, trans.index({ torch::indexing::Slice(0, 3), 3 }));
+		//Перейдем из мировой системы координат в систему координат связанную с камерой
+		pose = C2W2C(pose_world);
 	} catch (std::exception &e) {
 		NRWMutex.unlock();
 		throw e;
 	};
 	NRWMutex.unlock();
+
 	return pose;
 }
 
@@ -207,24 +219,28 @@ void TNeRFRenderWidget :: mousePressEvent(QMouseEvent * evnt)
 	MouseButtonPressed = evnt->button();
 }
 
-void TNeRFRenderWidget :: mouseMoveEvent(QMouseEvent * evnt)
+void TNeRFRenderWidget::mouseMoveEvent(QMouseEvent* evnt)
 {
 	NRWMutex.lock();
 	if (MouseButtonPressed == Qt::RightButton)
 	{
-		XRot -= 180 /*/ NSca*/ * (float)(evnt->y() - MousePosition.y()) / height();
-		ZRot -= 180 /*/ NSca*/ * (float)(evnt->x() - MousePosition.x()) / width();
+		//Вертикальное движение - вращение вокруг X (Pitch)
+		XRot += 180 * (float)(evnt->y() - MousePosition.y()) / height();
+		//Горизонтальное движение - вращение вокруг Y (Yaw)  
+		YRot -= 180 * (float)(evnt->x() - MousePosition.x()) / width();
+		////Ограничиваем Pitch чтобы избежать переворота
+		//XRot = std::clamp(XRot, -89.0f, 89.0f);
 	}
 
 	if (MouseButtonPressed == Qt::LeftButton)
 	{
-		XTra -= (float)(evnt->x() - MousePosition.x())/std::min(width(), height())/NSca*2*SceneBoundingSphereRadius;
-		YTra -= (float)(evnt->y() - MousePosition.y())/std::min(width(), height())/NSca*2*SceneBoundingSphereRadius;		
+		XTra += (float)(evnt->x() - MousePosition.x()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
+		YTra -= (float)(evnt->y() - MousePosition.y()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
 	}
 	NRWMutex.unlock();
 
 	MousePosition = evnt->pos();
-	
+
 	Render();
 }
 
@@ -235,8 +251,8 @@ void TNeRFRenderWidget :: mouseReleaseEvent(QMouseEvent * evnt)
 void TNeRFRenderWidget :: wheelEvent(QWheelEvent * evnt)
 {
 	NRWMutex.lock();
-	if ((evnt->angleDelta().y()) > 0) ScaleMinus();
-	else if ((evnt->angleDelta().y()) < 0) ScalePlus();
+	if ((evnt->angleDelta().y()) < 0) ScaleMinus();
+	else if ((evnt->angleDelta().y()) > 0) ScalePlus();
 	NRWMutex.unlock();
 
 	Render();
@@ -275,6 +291,19 @@ void TNeRFRenderWidget :: keyPressEvent(QKeyEvent * evnt)
 		RotateRight();
 		break;
 
+	case Qt::Key_W:
+		TranslateForward();
+		break;
+	case Qt::Key_S:
+		TranslateBackward();
+		break;
+	case Qt::Key_D:
+		TranslateRight();
+		break;
+	case Qt::Key_A:
+		TranslateLeft();
+		break;
+
 	case Qt::Key_Z:
 		TranslateDown();
 		break;
@@ -306,6 +335,15 @@ void TNeRFRenderWidget :: paintEvent(QPaintEvent * evt)
 	NRWMutex.unlock();
 }
 
+void TNeRFRenderWidget :: resizeEvent(QResizeEvent* event)
+{
+	if (K.defined() && (K.numel() != 0))
+	{
+		SetK(GetSameFOVCalibrationMatrix(K, event->size().width(), event->size().height()));
+		Render();
+	}
+}
+
 void TNeRFRenderWidget :: ScalePlus()
 {
 	NSca = NSca * 1.1f;
@@ -328,12 +366,32 @@ void TNeRFRenderWidget :: RotateDown()
 
 void TNeRFRenderWidget :: RotateLeft()
 {
-	ZRot += 1.0f;
+	ZRot -= 1.0f;
 }
 
 void TNeRFRenderWidget :: RotateRight()
 {
-	ZRot -= 1.0f;
+	ZRot += 1.0f;
+}
+
+void TNeRFRenderWidget::TranslateForward()
+{
+	ZTra += 0.05f;
+}
+
+void TNeRFRenderWidget::TranslateBackward()
+{
+	ZTra -= 0.05f;
+}
+
+void TNeRFRenderWidget::TranslateRight()
+{
+	XTra -= 0.05f;
+}
+
+void TNeRFRenderWidget :: TranslateLeft()
+{
+	XTra += 0.05f;
 }
 
 void TNeRFRenderWidget :: TranslateDown()

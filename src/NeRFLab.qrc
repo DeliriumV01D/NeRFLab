@@ -45,6 +45,16 @@
 		<file>../icons/Lego2.png</file>
 		<file>../icons/NLP.png</file>
 		<file>../icons/visual_embedding.png</file>
+		<file>../icons/48px-Go-top.png</file>
+		<file>../icons/48px-layers.png</file>
+		<file>../icons/50px-compare.png</file>
+		<file>../icons/blender-3d-48.png</file>
+		<file>../icons/icons8-axis-48.png</file>
+		<file>../icons/icons8-coordinate-system-48.png</file>
+		<file>../icons/icons8-house-48.png</file>
+		<file>../icons/icons8-image-folder-48.png</file>
+		<file>../icons/icons8-octaedro-48.png</file>
+		<file>../icons/icons8-process.png</file>
 	</qresource>
     <qresource prefix="/tt">
         <file>TabToolbar/StyleTemplate.qss</file>

@@ -49,11 +49,12 @@ protected:
 	void keyPressEvent(QKeyEvent * evnt) override;
 
 	void paintEvent(QPaintEvent *)	override;
+	void resizeEvent(QResizeEvent * event)	override;
 	//void	repaint(int x, int y, int w, int h)
 	//void	repaint(const QRect &rect)
 	//void	repaint(const QRegion &rgn)
-	//void	resize(const QSize &)
-	//void	resize(int w, int h)
+	//void	resize(const QSize &sz);
+	//void	resize(int w, int h);
 public:
 	float SceneBoundingSphereRadius = 1;
 
@@ -76,6 +77,10 @@ public:
 	void RotateDown();
 	void RotateLeft();
 	void RotateRight();
+	void TranslateForward();
+	void TranslateBackward();
+	void TranslateRight();
+	void TranslateLeft();
 	void TranslateDown();
 	void TranslateUp();
 	void SetDefaultScene();
