@@ -15,3 +15,5 @@ COLMAP(https://github.com/colmap/colmap),
 Qt(https://www.qt.io),
 TabToolbar(https://github.com/SeriousAlexej/TabToolbar)
 
+If you find this repository useful, please consider giving it a star ⭐
+

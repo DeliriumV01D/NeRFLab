@@ -87,7 +87,7 @@ void TNeRFRenderWidget::SetDefaultPose(torch::Tensor default_pose, const bool re
 	//Извлекаем углы Эйлера в порядке ZYX (соответствует порядку применения в GetRenderPose)
 	float found_x_rot, found_y_rot, found_z_rot;
 	float sy = -R.index({ 2, 0 }).item<float>();
-	const float eps = 1e-6;
+	const float eps = 1e-6f;
 	if (std::fabs(sy) < 1.0f - eps)
 	{
 		found_x_rot = std::atan2(R.index({ 2, 1 }).item<float>(), R.index({ 2, 2 }).item<float>());
@@ -225,17 +225,17 @@ void TNeRFRenderWidget::mouseMoveEvent(QMouseEvent* evnt)
 	if (MouseButtonPressed == Qt::RightButton)
 	{
 		//Вертикальное движение - вращение вокруг X (Pitch)
-		XRot += 180 * (float)(evnt->y() - MousePosition.y()) / height();
+		XRot += 180 * (float)(evnt->pos().y() - MousePosition.y()) / height();
 		//Горизонтальное движение - вращение вокруг Y (Yaw)  
-		YRot -= 180 * (float)(evnt->x() - MousePosition.x()) / width();
+		YRot -= 180 * (float)(evnt->pos().x() - MousePosition.x()) / width();
 		////Ограничиваем Pitch чтобы избежать переворота
 		//XRot = std::clamp(XRot, -89.0f, 89.0f);
 	}
 
 	if (MouseButtonPressed == Qt::LeftButton)
 	{
-		XTra += (float)(evnt->x() - MousePosition.x()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
-		YTra -= (float)(evnt->y() - MousePosition.y()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
+		XTra += (float)(evnt->pos().x() - MousePosition.x()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
+		YTra -= (float)(evnt->pos().y() - MousePosition.y()) / std::min(width(), height()) / NSca * SceneBoundingSphereRadius;
 	}
 	NRWMutex.unlock();
 
@@ -420,28 +420,28 @@ void TNeRFRenderWidget :: SetDefaultScene()
 void TNeRFRenderWidget :: OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRenderResult> render_result)
 {
 	if (ViewParams.DrawNeRFRGB)
-		if (std::get<0>(render_result).Outputs1.RGBMap.defined())
+		if (std::get<0>(render_result).Outputs.RGBMap.defined())
 		{
-			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.RGBMap.cpu()));
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs.RGBMap.cpu()));
 		}
 
 	if (ViewParams.DrawNeRFDepth)
-		if (std::get<0>(render_result).Outputs1.DepthMap.defined())
+		if (std::get<0>(render_result).Outputs.DepthMap.defined())
 		{
-			std::get<0>(render_result).Outputs1.DepthMap = (std::get<0>(render_result).Outputs1.DepthMap - RParams.Near) / (RParams.Far - RParams.Near);
-			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.DepthMap.detach().cpu()));
+			std::get<0>(render_result).Outputs.DepthMap = (std::get<0>(render_result).Outputs.DepthMap - std::get<0>(render_result).Near) / (std::get<0>(render_result).Far - std::get<0>(render_result).Near);
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs.DepthMap.detach().cpu()));
 		}
 
 	if (ViewParams.DrawNeRFDisp)
-		if (std::get<0>(render_result).Outputs1.DispMap.defined())
+		if (std::get<0>(render_result).Outputs.DispMap.defined())
 		{
-			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs1.DispMap.cpu()));
+			SetRenderMat(TorchTensorToCVMat(std::get<0>(render_result).Outputs.DispMap.cpu()));
 		}
 
 	if (ViewParams.DrawLeRF)
-		if (std::get<1>(render_result).Outputs1.Relevancy.defined())
+		if (std::get<1>(render_result).Outputs.Relevancy.defined())
 		{
-			torch::Tensor rel = std::get<1>(render_result).Outputs1.Relevancy.cpu();
+			torch::Tensor rel = std::get<1>(render_result).Outputs.Relevancy.cpu();
 			int w = rel.sizes()[1],
 				h = rel.sizes()[0];		//this->size().height();
 			cv::Mat relevancy_img(h, w, CV_8UC1/*CV_32FC1*/);
@@ -449,8 +449,8 @@ void TNeRFRenderWidget :: OnUpdateResult(std::tuple<NeRFRenderResult, LeRFRender
 			for (int i = 0; i < w; i++)
 				for (int j = 0; j < h; j++)
 				{
-						float lv = rel.index({j,i,0}).item<float>();
-						relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>(lv * 255);	//[-1..1] -> [0..255]
+					float lv = rel.index({j,i,0}).item<float>();
+					relevancy_img.at<uchar>(j, i) = cv::saturate_cast<uchar>(lv * 255);	//[-1..1] -> [0..255]
 				}
 			cv::Mat colored_map;
 			cv::applyColorMap(relevancy_img, colored_map, cv::COLORMAP_JET);

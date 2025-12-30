@@ -331,22 +331,20 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 
 		NeRFExecutorParams exparams;
 		exparams.LoadFromFile(std::filesystem::path(NeRFDir) / "executor_params.json");
+		exparams.ft_path = NeRFDir;	//Нужно заменить на ту папку из которой загружаем, потому что там записана папка в которую сохраняли при обучении, а ее могли переместить
 		std::unique_ptr<TThreadedNeRFExecutor::TExecutor> nerf_executor = std::make_unique<TThreadedNeRFExecutor::TExecutor>(exparams);
-
 		NeRFExecutorTrainParams params;
 		params.LoadFromFile(std::filesystem::path(NeRFDir) / "executor_train_params.json");
-
 		Data.LoadFromFile(std::filesystem::path(NeRFDir) / "data.json");
 
 		nerf_executor->Initialize(exparams, Data.BoundingBox);
 		if (exparams.use_lerf)
 			nerf_executor->SetLeRFPrompts(exparams.lerf_positives, exparams.lerf_negatives);//nerf_executor->InitializeTestLeRF(params, Data);
 
-
 		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
 		//helpful for reducing floaters during training, but it can cause clipping artifacts during
 		//inference when an evaluation or viewer camera moves closer to the object.
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0.f/*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = true;
@@ -355,10 +353,10 @@ void TNeRFLabMainWindow :: OnActionOpenNerfTriggered()
 		vp.DrawLeRF = exparams.use_lerf;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
-		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetDefaultPose(Data.Views[0].Pose.clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e){ 
@@ -385,7 +383,7 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		std::filesystem::create_directories(BASE_DIR);
 
 		NeRFExecutorParams exparams;
-		exparams.net_depth = 2;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
+		exparams.net_depth = 3;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
 		exparams.net_width = 64;				//channels per layer 256 for classic NeRF, 64 for HashNeRF
 		exparams.multires = 10;
 		exparams.use_nerf = true;
@@ -393,24 +391,21 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		exparams.calculate_normals = false;
 		exparams.use_pred_normal = false;	//whether to use predicted normals
 		exparams.use_lerf = false;
+		exparams.thin_ray = false;
 		exparams.multires_views = 8;		//log2 of max freq for positional encoding (2D direction)
 		exparams.n_importance = 192;		//number of additional fine samples per ray
-		exparams.net_depth_fine = 3;		//layers in fine network 8 for classic NeRF, 2/3 for HashNeRF
-		exparams.net_width_fine = 64;	//channels per layer in fine network 256 for classic NeRF, 64 for HashNeRF
-		exparams.num_layers_color = 2;				//for color part of the HashNeRF
+		exparams.num_layers_color = 3;				//for color part of the HashNeRF
 		exparams.hidden_dim_color = 64;			//for color part of the HashNeRF
-		exparams.num_layers_color_fine = 3;	//for color part of the HashNeRF
-		exparams.hidden_dim_color_fine = 64;	//for color part of the HashNeRF
 		exparams.num_layers_normals = 2;			//!!!->2
 		exparams.hidden_dim_normals = 64;
 		exparams.geo_feat_dim = 15;
-		exparams.n_levels = 18;
+		exparams.n_levels = 16;
 		exparams.n_features_per_level = 2;
-		exparams.log2_hashmap_size = 21;		//19
+		exparams.log2_hashmap_size = 19;		//19
 		exparams.base_resolution = 16;
 		exparams.finest_resolution = 1024;
 		exparams.device = torch::kCUDA;
-		exparams.learning_rate = 1e-2;		//5e-4 for classic NeRF
+		exparams.learning_rate = 1e-2f;		//5e-4 for classic NeRF
 		exparams.ft_path = BASE_DIR;//"..//..//NeRF++//build//output";//"..//output";		//"..//..//NeRF++//build//output";
 		exparams.n_levels_le = exparams.n_levels/*32*/,																		//for language embedder
 		exparams.n_features_per_level_le = 8/*8*/,								//for language embedder
@@ -423,9 +418,9 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		exparams.lang_embed_dim = 768;			//Language embedder head params
 		exparams.geo_feat_dim_le = 32;			//Language embedder head params
 		exparams.pyr_embed_min_zoom_out = 0;
-		exparams.pyr_embedder_overlap = 0.5;
+		exparams.pyr_embedder_overlap = 0.5f;
 		exparams.path_to_clip = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336";									//Path to RuClip model
-		exparams.	path_to_bpe = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336//bpe.model";			//Path to tokenizer
+		exparams.path_to_bpe = "..//..//RuCLIP//data//ruclip-vit-large-patch14-336//bpe.model";			//Path to tokenizer
 		exparams.lerf_positives = "stool chair";
 		exparams.lerf_negatives = {"object", "things", "texture"};
 		//NeRFExecutor <CuHashEmbedder, CuSHEncoder, NeRFSmall> nerf_executor(exparams);
@@ -444,13 +439,12 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
 		params.IPrint = 100;						//frequency of console printout and metric loggin
-		params.NIters = powf(float(Data.W) / 800 * float(Data.H) / 800, 0.7f) * 6000 + params.IPrint;
-		params.LRateDecay = float(params.NIters)/1000 * 2/3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		params.NIters = powf(float(Data.Views[0].W) / 800 * float(Data.Views[0].H) / 800, 0.7f) * 8000 + params.IPrint;
+		params.LRateDecay = float(params.NIters)/1000 * 2;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
 		//logging / saving options
 		params.IImg = 500;							//frequency of tensorboard image logging
 		params.IWeights = params.NIters - params.IPrint;				//frequency of weight ckpt saving
 		params.ITestset = params.NIters - params.IPrint;				//frequency of testset saving
-		params.IVideo = params.NIters + params.IPrint;					//frequency of render_poses video saving
 		params.ReturnRaw = false;
 		params.RenderFactor = 0;
 		params.PrecorpFrac = 0.5f;
@@ -465,7 +459,7 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
 		//helpful for reducing floaters during training, but it can cause clipping artifacts during
 		//inference when an evaluation or viewer camera moves closer to the object.
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0./*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = true;
@@ -474,10 +468,10 @@ void TNeRFLabMainWindow :: OnActionTrainNerfTriggered()
 		vp.DrawLeRF = false;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
-		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetDefaultPose(Data.Views[0].Pose.clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e) { 
@@ -500,7 +494,7 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		std::filesystem::create_directories(BASE_DIR);
 
 		NeRFExecutorParams exparams;
-		exparams.net_depth = 2;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
+		exparams.net_depth = 3;				//layers in network 8 for classic NeRF, 2/3 for HashNeRF
 		exparams.net_width = 64;				//channels per layer 256 for classic NeRF, 64 for HashNeRF
 		exparams.multires = 10;
 		exparams.use_nerf = false;
@@ -508,14 +502,11 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		exparams.calculate_normals = false;
 		exparams.use_pred_normal = false;	//whether to use predicted normals
 		exparams.use_lerf = true;
+		exparams.thin_ray = false;
 		exparams.multires_views = 8;		//log2 of max freq for positional encoding (2D direction)
 		exparams.n_importance = 192;		//number of additional fine samples per ray
-		exparams.net_depth_fine = 3;		//layers in fine network 8 for classic NeRF, 2/3 for HashNeRF
-		exparams.net_width_fine = 64;	//channels per layer in fine network 256 for classic NeRF, 64 for HashNeRF
-		exparams.num_layers_color = 2;				//for color part of the HashNeRF
+		exparams.num_layers_color = 3;				//for color part of the HashNeRF
 		exparams.hidden_dim_color = 64;			//for color part of the HashNeRF
-		exparams.num_layers_color_fine = 3;	//for color part of the HashNeRF
-		exparams.hidden_dim_color_fine = 64;	//for color part of the HashNeRF
 		exparams.num_layers_normals = 2;			//!!!->2
 		exparams.hidden_dim_normals = 64;
 		exparams.geo_feat_dim = 15;
@@ -525,7 +516,7 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		exparams.base_resolution = 16;
 		exparams.finest_resolution = 1024;
 		exparams.device = torch::kCUDA;
-		exparams.learning_rate = 1e-2;		//5e-4 for classic NeRF
+		exparams.learning_rate = 1e-2f;		//5e-4 for classic NeRF
 		exparams.ft_path = BASE_DIR;//"..//..//NeRF++//build//output";//"..//output";		//"..//..//NeRF++//build//output";
 		exparams.n_levels_le = exparams.n_levels/*32*/,																		//for language embedder
 		exparams.n_features_per_level_le = 8/*8*/,								//for language embedder
@@ -557,13 +548,12 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		params.NRand = 32 * 32 * (exparams.use_lerf ? 1 : 16);			//batch size (number of random rays per gradient step), decrease if running out of memory, >= Chunk, n*Chunk
 		params.PrecorpIters = 0;				//number of steps to train on central crops
 		params.IPrint = 100;						//frequency of console printout and metric loggin
-		params.NIters = powf(float(Data.W) / 800 * float(Data.H) / 800, 0.7f) * 6000 + params.IPrint;
-		params.LRateDecay = float(params.NIters) / 1000 * 2 / 3;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
+		params.NIters = powf(float(Data.Views[0].W) / 800 * float(Data.Views[0].H) / 800, 0.7f) * 8000 + params.IPrint;
+		params.LRateDecay = float(params.NIters) / 1000 * 2;				//exponential learning rate decay (in 1000 steps)  например: 150 - каждые 150000 итераций скорость обучения будет падать в 10 раз
 		//logging / saving options
 		params.IImg = 500;							//frequency of tensorboard image logging
 		params.IWeights = params.NIters - params.IPrint;				//frequency of weight ckpt saving
 		params.ITestset = params.NIters - params.IPrint;				//frequency of testset saving
-		params.IVideo = params.NIters + params.IPrint;					//frequency of render_poses video saving
 		params.ReturnRaw = false;
 		params.RenderFactor = 0;
 		params.PrecorpFrac = 0.5f;
@@ -581,7 +571,7 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		//reset_near_plane: whether to reset the near plane to 0.0 during inference.The near plane can be
 		//helpful for reducing floaters during training, but it can cause clipping artifacts during
 		//inference when an evaluation or viewer camera moves closer to the object.
-		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, 0.f/*Data.Near*/, Data.Far, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
+		std::unique_ptr<NeRFRenderParams> render_params(nerf_executor->FillRenderParams(nerf_executor->GetParams(), params, std::numeric_limits<int>::max(), Data.BoundingBox, false, nerf_executor->GetParams().calculate_normals || nerf_executor->GetParams().use_pred_normal));
 
 		TRenderWidgetViewParams vp;
 		vp.DrawNeRFRGB = false;
@@ -590,10 +580,10 @@ void TNeRFLabMainWindow :: OnActionTrainLerfTriggered()
 		vp.DrawLeRF = true;
 		//!!!Сделать в каждой из этих процедур проверку на зополненность остальных и update
 		ui->RenderWidget->SetRenderParams(*render_params, false);
-		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
-		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
+		std::cout << "render K: " << GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()) << std::endl;
+		ui->RenderWidget->SetK(GetSameFOVCalibrationMatrix(Data.Views[0].K.clone().detach(), ui->RenderWidget->size().width(), ui->RenderWidget->size().height()));
 		ui->RenderWidget->SetExecutor(nerf_executor, false);
-		ui->RenderWidget->SetDefaultPose(Data.Poses[0].clone().detach(), false);
+		ui->RenderWidget->SetDefaultPose(Data.Views[0].Pose.clone().detach(), false);
 		ui->RenderWidget->SetViewParams(vp, true);
 
 	} catch (std::exception &e) { 
